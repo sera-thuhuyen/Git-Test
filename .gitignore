@@ -1,0 +1,29 @@
+# Các file bộ nhớ đệm của Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Môi trường ảo (Virtual Environments)
+venv/
+.venv/
+env/
+ENV/
+
+# File cấu hình môi trường chứa mật khẩu/token bí mật
+.env
+
+# Hệ điều hành tự sinh
+.DS_Store
+Thumbs.db
+
+# BẢO MẬT: Chặn toàn bộ file mật khóa JSON và dữ liệu cấu hình
+# Điều này giúp bạn không bao giờ bị GitHub chặn push do lộ Service Account nữa
+*.json
+BigQuery/*.json
+
+# Chặn các file dữ liệu lớn nếu có tải về máy local
+*.csv
+*.xlsx
+*.parquet
+*.sql
