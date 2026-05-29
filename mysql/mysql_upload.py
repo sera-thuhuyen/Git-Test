@@ -224,8 +224,133 @@ def upload_csv_folder(subfolder: str = "", db_name: str = "testing_auto", mode: 
     else:
         print("⚠️  No valid data to upload.")
 
+def detect_format_and_read(filepath: str) -> pd.DataFrame:
+    """
+    Detects if the file is a standard delimited file or a Python dictionary log,
+    then reads it into a DataFrame.
+    """
+    with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+        first_line = f.readline().strip()
+    
+    if not first_line:
+        return pd.DataFrame()
+
+    # 1. Check if it's a Python dictionary format (starts with { and contains u')
+    if first_line.startswith('{') and ("u'" in first_line or 'u"' in first_line):
+        print(f"     (Format detected: Python Dictionary Log)")
+        data = []
+        with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+            for line in f:
+                if line.strip():
+                    try:
+                        data.append(ast.literal_eval(line.strip()))
+                    except Exception:
+                        continue
+        return pd.DataFrame(data)
+
+    # 2. Otherwise, treat as a standard delimited file
+    # Check for common delimiters
+    delimiter = "\t" # Default
+    for d in ["|", ";", ","]:
+        if d in first_line:
+            delimiter = d
+            break
+    
+    print(f"     (Format detected: Delimited Text, sep={repr(delimiter)})")
+    # FIX: pd.read_csv does not have an 'errors' parameter.
+    return pd.read_csv(filepath, sep=delimiter, encoding="utf-8", engine='python')
+
+# ──────────────────────────────────────────────
+# Option 4 (Flexible): Each TXT file → separate table
+# ──────────────────────────────────────────────
+def upload_txt(subfolder: str = "", files: list = None, db_name: str = "testing_auto", mode: str = "local"):
+    try:
+        path = get_data_path(subfolder)
+    except FileNotFoundError as e:
+        print(e)
+        return
+
+    engine = get_engine(db_name, mode)
+    all_txt = sorted([f for f in os.listdir(path) if f.lower().endswith(".txt")])
+
+    if not all_txt:
+        print(f"⚠️  No TXT files found in: {path}")
+        return
+
+    print(f"\n📂 Path: {path}")
+
+    if files:
+        selected = [f for f in files if f in all_txt]
+        missing = set(files) - set(selected)
+        for m in missing:
+            print(f"  ⚠️  '{m}' not found in {path}, skipping.")
+    else:
+        print("  → No explicit files requested. Selecting ALL TXT files in folder.")
+        selected = all_txt
+
+    if not selected:
+        print("⚠️  No valid files to process.")
+        return
+
+    print(f"\n🚀 Uploading {len(selected)} file(s) to DB '{db_name}' ({mode} mode)...\n")
+    for filename in selected:
+        table_name = os.path.splitext(filename)[0]
+        filepath = os.path.join(path, filename)
+        try:
+            print(f"  📖 Processing '{filename}'...")
+            df = detect_format_and_read(filepath)
+            if not df.empty:
+                upload_dataframe(df, table_name, engine)
+            else:
+                print(f"  ⚠️  '{filename}' is empty or has invalid format.")
+        except Exception as e:
+            print(f"  ❌ Failed '{filename}': {e}")
+
+# ──────────────────────────────────────────────
+# Option 5 (Flexible): All TXT files merged → 1 table
+# ──────────────────────────────────────────────
+def upload_txt_folder(subfolder: str = "", db_name: str = "testing_auto", mode: str = "local"):
+    try:
+        path = get_data_path(subfolder)
+    except FileNotFoundError as e:
+        print(e)
+        return
+
+    engine = get_engine(db_name, mode)
+    all_txt = sorted([f for f in os.listdir(path) if f.lower().endswith(".txt")])
+
+    if not all_txt:
+        print(f"⚠️  No TXT files found in: {path}")
+        return
+
+    table_name = subfolder if subfolder else "merged_txt"
+    print(f"\n📂 Path: {path}")
+    print(f"🗄️  Target DB: {db_name} (Mode: {mode})")
+    print(f"📄 Merging {len(all_txt)} file(s) → table '{sanitize_table_name(table_name)}'...\n")
+
+    first_file = True
+    total_rows = 0
+    
+    for filename in all_txt:
+        filepath = os.path.join(path, filename)
+        try:
+            print(f"  📎 Processing '{filename}'...")
+            df = detect_format_and_read(filepath)
+            if not df.empty:
+                if_exists = "replace" if first_file else "append"
+                upload_dataframe(df, table_name, engine, if_exists=if_exists)
+                total_rows += len(df)
+                first_file = False
+        except Exception as e:
+            print(f"  ❌ Failed to process '{filename}': {e}")
+
+    if not first_file:
+        print(f"\n✅ Total merged and uploaded: {total_rows} rows.")
+    else:
+        print("⚠️  No valid data was uploaded.")
+
 
 if __name__ == "__main__":
     # Test tự động chạy toàn bộ file Excel trong thư mục data/fin_data/ mà không cần hỏi
-    files_list = ['World Flags Dataset Addition.xlsx']
-    upload_excel("fin_data", db_name="testing_auto", mode="remote")
+    files_list = ['log21.txt']
+    upload_txt("fpt_test", db_name="testing_auto", mode="remote")
