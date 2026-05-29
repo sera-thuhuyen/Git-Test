@@ -2,18 +2,23 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import pymysql
 
-DB_USER = "test"
-DB_PASSWORD = "test1"
-DB_HOST = "localhost"
+
+def configure_mode(mode: str):
+    MODE = mode
+    DB_USER = "test" if MODE == "local" else "asw"
+    DB_PASSWORD = "test1" if MODE == "local" else "Yangshuangno1"
+    DB_HOST = "localhost" if MODE == "local" else "172.16.20.128"
+    return MODE, DB_USER, DB_PASSWORD, DB_HOST
 
 # Sử dụng một dictionary để lưu trữ các engine tương ứng với từng database (Tránh tạo lại engine nhiều lần)
 _engines = {}
 
 
-def ensure_database_exists(db_name: str):
+def ensure_database_exists(db_name: str, mode: str = "local"):
     """
     Kết nối tới MySQL Server và tự động tạo Database nếu chưa tồn tại.
     """
+    MODE, DB_USER, DB_PASSWORD, DB_HOST = configure_mode(mode)
     try:
         connection = pymysql.connect(
             host=DB_HOST,
@@ -34,12 +39,13 @@ def ensure_database_exists(db_name: str):
         print("    (Sẽ thử kết nối trực tiếp, hãy đảm bảo tài khoản có quyền hoặc DB đã tồn tại)")
 
 
-def get_engine(db_name: str):
+def get_engine(db_name: str, mode: str = "local"):
     """
     Trả về SQLAlchemy Engine cho database được chỉ định.
     Nếu chưa có engine cho database này, hàm sẽ tự động kiểm tra/tạo DB và khởi tạo engine mới.
     """
     global _engines
+    MODE, DB_USER, DB_PASSWORD, DB_HOST = configure_mode(mode)
     
     if not db_name:
         raise ValueError("❌ Tên Database không được để trống!")
@@ -49,7 +55,7 @@ def get_engine(db_name: str):
         return _engines[db_name]
     
     # 1. Tự động kiểm tra / tạo DB
-    ensure_database_exists(db_name)
+    ensure_database_exists(db_name, mode)
     
     # 2. Khởi tạo Engine mới cho DB này
     database_url = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{db_name}"
@@ -65,9 +71,9 @@ def get_engine(db_name: str):
     return engine
 
 
-def test_connection(db_name: str = "testing"):
+def test_connection(db_name: str = "testing", mode: str = "local"):
     try:
-        engine = get_engine(db_name)
+        engine = get_engine(db_name, mode)
         with engine.connect() as conn:
             print(f"✅ Kết nối thành công đến MySQL DB: {db_name}")
     except Exception as e:
@@ -76,4 +82,4 @@ def test_connection(db_name: str = "testing"):
 
 if __name__ == "__main__":
     # Chạy thử nghiệm trực tiếp tạo/kết nối tới db tên là 'testing_auto'
-    test_connection("testing_auto")
+    test_connection("testing_auto", "remote")

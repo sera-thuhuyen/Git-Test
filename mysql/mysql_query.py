@@ -4,12 +4,12 @@ from sqlalchemy import text
 from mysql_config import get_engine
 
 
-def clear_or_drop_table(table_name: str, db_name: str = "testing_auto", action: str = "drop"):
+def clear_or_drop_table(table_name: str, db_name: str = "testing_auto", mode: str = "local", action: str = "drop"):
     """
     Xóa hoàn toàn bảng (drop) hoặc chỉ xóa sạch dữ liệu giữ lại cấu trúc bảng (truncate).
     action: 'drop' hoặc 'truncate'
     """
-    engine = get_engine(db_name)
+    engine = get_engine(db_name, mode)  # Sử dụng chế độ local để thao tác trực tiếp với DB
     action_upper = action.strip().upper()
     
     if action_upper not in ["DROP", "TRUNCATE"]:
@@ -31,7 +31,7 @@ def clear_or_drop_table(table_name: str, db_name: str = "testing_auto", action: 
             print(f"❌ Thao tác {action_upper} thất bại cho bảng '{table_name}': {e}")
 
 
-def insert_data_from_dataframe(df: pd.DataFrame, table_name: str, db_name: str = "testing_auto", if_exists: str = "append"):
+def insert_data_from_dataframe(df: pd.DataFrame, table_name: str, db_name: str = "testing_auto", mode: str = "local", if_exists: str = "append"):
     """
     Thêm dữ liệu (Insert) từ một DataFrame có sẵn vào bảng MySQL.
     if_exists: 
@@ -42,7 +42,7 @@ def insert_data_from_dataframe(df: pd.DataFrame, table_name: str, db_name: str =
         print("⚠️ DataFrame trống, không có dữ liệu để insert.")
         return
 
-    engine = get_engine(db_name)
+    engine = get_engine(db_name, mode)  # Sử dụng chế độ local để thao tác trực tiếp với DB
     try:
         # Tự động chuyển tên cột về dạng chuẩn viết thường, không khoảng cách
         df.columns = [str(col).strip().replace(" ", "_").replace("-", "_").lower() for col in df.columns]
@@ -53,11 +53,11 @@ def insert_data_from_dataframe(df: pd.DataFrame, table_name: str, db_name: str =
         print(f"❌ Insert dữ liệu vào bảng '{table_name}' thất bại: {e}")
 
 
-def execute_custom_query(sql_script: str, params: dict = None, db_name: str = "testing_auto"):
+def execute_custom_query(sql_script: str, params: dict = None, db_name: str = "testing_auto", mode: str = "local"):
     """
     Thực hiện các câu lệnh UPDATE, INSERT thủ công, hoặc DELETE bằng câu lệnh SQL thuần.
     """
-    engine = get_engine(db_name)
+    engine = get_engine(db_name, mode)
     with engine.begin() as connection:
         try:
             # Chuyển chuỗi string thành đối tượng câu lệnh SQL an toàn của SQLAlchemy
@@ -70,12 +70,12 @@ def execute_custom_query(sql_script: str, params: dict = None, db_name: str = "t
             return None
 
 
-def query_data_to_dataframe(sql_select_script: str, db_name: str = "testing_auto") -> pd.DataFrame:
+def query_data_to_dataframe(sql_select_script: str, db_name: str = "testing_auto", mode: str = "local") -> pd.DataFrame:
     """
     Truy vấn (SELECT) dữ liệu từ MySQL và trả về định dạng Pandas DataFrame 
     để bạn dễ dàng xử lý hoặc xuất file excel/csv sau này.
     """
-    engine = get_engine(db_name)
+    engine = get_engine(db_name, mode)
     try:
         # Sử dụng hàm read_sql của pandas để lấy trực tiếp dữ liệu ra DataFrame
         df = pd.read_sql(text(sql_select_script), con=engine)
@@ -85,13 +85,26 @@ def query_data_to_dataframe(sql_select_script: str, db_name: str = "testing_auto
         print(f"❌ Truy vấn dữ liệu thất bại: {e}")
         return pd.DataFrame() # Trả về dataframe rỗng nếu lỗi
 
-
+def drop_database(db_name: str, mode: str = "local"):
+    """
+    Xóa hoàn toàn một Database.
+    ⚠️ Hành động này không thể hoàn tác, toàn bộ dữ liệu trong DB sẽ bị mất.
+    """
+    engine = get_engine(db_name, mode)
+    with engine.begin() as connection:
+        try:
+            query = text(f"DROP DATABASE IF EXISTS `{db_name}`;")
+            connection.execute(query)
+            print(f"🗑️  Đã xóa hoàn toàn Database '{db_name}'.")
+        except Exception as e:
+            print(f"❌ Xóa Database '{db_name}' thất bại: {e}")
 # ──────────────────────────────────────────────────────────────
 
 # ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     TARGET_DB = "finance_db"
     TABLE = "fin_data"
+    MODE = "remote"
 
     print("--- BẮT ĐẦU CHẠY THỬ NGHIỆM ĐIỀU KHIỂN DATABASE ---")
 
@@ -104,24 +117,28 @@ if __name__ == "__main__":
     df_new = pd.DataFrame(data_test)
     
     print("\n1. Thử nghiệm chèn dữ liệu:")
-    insert_data_from_dataframe(df_new, table_name=TABLE, db_name=TARGET_DB, if_exists="append")
+    insert_data_from_dataframe(df_new, table_name=TABLE, db_name=TARGET_DB, mode=MODE, if_exists="append")
 
     # 2. Thử nghiệm TRUY VẤN (SELECT) dữ liệu vừa chèn
     print("\n2. Thử nghiệm truy vấn dữ liệu:")
     select_sql = f"SELECT * FROM `{TABLE}` WHERE funding > 60000;"
-    df_result = query_data_to_dataframe(select_sql, db_name=TARGET_DB)
+    df_result = query_data_to_dataframe(select_sql, db_name=TARGET_DB, mode=MODE)
     print(df_result)
 
     # 3. Thử nghiệm CẬP NHẬT (UPDATE) trạng thái dự án bằng SQL thuần
     print("\n3. Thử nghiệm cập nhật dữ liệu (UPDATE):")
     update_sql = f"UPDATE `{TABLE}` SET status = :new_status WHERE project_name = :p_name;"
     # Sử dụng params (tham số hóa) để tránh lỗi SQL Injection và an toàn dữ liệu
-    execute_custom_query(update_sql, params={"new_status": "Completed", "p_name": "Dự án B"}, db_name=TARGET_DB)
+    execute_custom_query(update_sql, params={"new_status": "Completed", "p_name": "Dự án B"}, db_name=TARGET_DB, mode=MODE)
 
     # Xem lại kết quả sau khi Update
     print("\nKiểm tra lại dữ liệu sau khi UPDATE:")
-    print(query_data_to_dataframe(f"SELECT * FROM `{TABLE}`;", db_name=TARGET_DB))
+    print(query_data_to_dataframe(f"SELECT * FROM `{TABLE}`;", db_name=TARGET_DB, mode=MODE))
 
     # 4. Thử nghiệm XÓA BẢNG (DROP) - (Bỏ comment dòng dưới nếu bạn thực sự muốn xóa bảng test)
-    print("\n4. Thử nghiệm xóa bảng:")
-    clear_or_drop_table(table_name=TABLE, db_name=TARGET_DB, action="drop")
+    # print("\n4. Thử nghiệm xóa bảng:")
+    # clear_or_drop_table(table_name=TABLE, db_name=TARGET_DB, mode=MODE, action="drop")
+
+    print("\n Drop db:")
+    drop_database(db_name=TARGET_DB, mode=MODE)
+   
