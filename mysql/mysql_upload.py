@@ -79,9 +79,9 @@ def show_all_files(subfolder: str = ""):
 # ──────────────────────────────────────────────
 # Option 1: Each CSV → separate table
 # ──────────────────────────────────────────────
-def upload_csv(subfolder: str = "", files: list = None, db_name: str = "testing_auto"):
+def upload_csv(subfolder: str = "", files: list = None, db_name: str = "testing_auto", mode: str = "local"):
     path = get_data_path(subfolder)
-    engine = get_engine(db_name)
+    engine = get_engine(db_name, mode)  # Truyền db_name và mode vào hàm config nhận tham số
     all_csv = sorted([f for f in os.listdir(path) if f.lower().endswith(".csv")])
 
     if not all_csv:
@@ -120,9 +120,9 @@ def upload_csv(subfolder: str = "", files: list = None, db_name: str = "testing_
 # ──────────────────────────────────────────────
 # Option 2: Each Excel sheet → separate table
 # ──────────────────────────────────────────────
-def upload_excel(subfolder: str = "", files: list = None, db_name: str = "testing_auto"):
+def upload_excel(subfolder: str = "", files: list = None, db_name: str = "testing_auto", mode: str = "local"):
     path = get_data_path(subfolder)
-    engine = get_engine(db_name)
+    engine = get_engine(db_name, mode)
     all_excel = sorted([f for f in os.listdir(path) if f.lower().endswith((".xlsx", ".xls"))])
 
     if not all_excel:
@@ -169,10 +169,10 @@ def upload_excel(subfolder: str = "", files: list = None, db_name: str = "testin
 # ──────────────────────────────────────────────
 # Option 3: All CSV merged → 1 table
 # ──────────────────────────────────────────────
-def upload_csv_folder(subfolder: str = "", db_name: str = "testing_auto"):
+def upload_csv_folder(subfolder: str = "", db_name: str = "testing_auto", mode: str = "local"):
     path = get_data_path(subfolder)
-    engine = get_engine(db_name)  # Truyền db_name vào hàm config nhận tham số
-    
+    engine = get_engine(db_name, mode)  # Truyền db_name và mode vào hàm config nhận tham số
+
     # Lấy danh sách tất cả các file CSV và Excel
     valid_extensions = (".csv", ".xlsx", ".xls")
     all_files = sorted([
@@ -228,4 +228,4 @@ def upload_csv_folder(subfolder: str = "", db_name: str = "testing_auto"):
 if __name__ == "__main__":
     # Test tự động chạy toàn bộ file Excel trong thư mục data/fin_data/ mà không cần hỏi
     files_list = ['World Flags Dataset Addition.xlsx']
-    upload_csv_folder("Traffic", db_name="testing_auto")
+    upload_excel("fin_data", db_name="testing_auto", mode="remote")
