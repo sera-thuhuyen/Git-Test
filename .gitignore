@@ -27,3 +27,4 @@ BigQuery/*.json
 *.xlsx
 *.parquet
 *.sql
+*.txt
